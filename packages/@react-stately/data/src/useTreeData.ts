@@ -107,6 +107,20 @@ export interface TreeData<T extends object> {
   move(key: Key, toParentKey: Key, index: number): void,
 
   /**
+   * Moves one or more items before a given key.
+   * @param key - The key of the item to move the items before.
+   * @param keys - The keys of the items to move.
+   */
+  moveBefore(key: Key, keys: Iterable<Key>): void,
+
+  /**
+   * Moves one or more items after a given key.
+   * @param key - The key of the item to move the items after.
+   * @param keys - The keys of the items to move.
+   */
+  moveAfter(key: Key, keys: Iterable<Key>): void,
+
+  /**
    * Updates an item in the tree.
    * @param key - The key of the item to update.
    * @param newValue - The new value for the item.
@@ -216,6 +230,90 @@ export function useTreeData<T extends object>(options: TreeOptions<T>): TreeData
     for (let child of node.children) {
       deleteNode(child);
     }
+  }
+
+  function sortKeys(items: TreeNode<T>[]) {
+    return function sortKeys(keyA: Key, keyB: Key) {
+      const nodeA = map.get(keyA);
+      const nodeB = map.get(keyB);
+
+      // if either key is not found, return the order as is
+      if (!nodeA || !nodeB) {
+        return 0;
+      }
+
+      const parentA = nodeA.parentKey;
+      const parentB = nodeB.parentKey;
+
+      // if the keys have the same parent sort them
+      if (parentA === parentB) {
+        const siblings = parentA ? map.get(parentA).children : items;
+        return siblings.indexOf(nodeA) - siblings.indexOf(nodeB);
+      }
+
+      // otherwise sort by their common ancestor
+      const getAncestors = (key: Key) => {
+        const ancestors: TreeNode<T>[] = [];
+        for (let item = map.get(key); item; item = map.get(item.parentKey)) {
+          ancestors.unshift(item);
+        }
+        return ancestors;
+      };
+
+      const ancestorsA = getAncestors(keyA);
+      const ancestorsB = getAncestors(keyB);
+
+      const minLength = Math.min(ancestorsA.length, ancestorsB.length);
+
+      for (let i = 0; i < minLength; i++) {
+        if (ancestorsA[i] !== ancestorsB[i]) {
+          const siblings = i === 0 ? items : ancestorsA[i - 1].children;
+          return siblings.indexOf(ancestorsA[i]) - siblings.indexOf(ancestorsB[i]);
+        }
+      }
+
+      // if there is no divergent ancestor, then they are parent/child
+      return ancestorsA.length - ancestorsB.length;
+    };
+  }
+
+  function move(items: TreeNode<T>[], keys: Iterable<Key>, parentKey: Key = null, toIndex: number) {
+    let newItems = items;
+    // Sort keys so that the order in the list is retained.
+    const sortedKeys = [...keys].sort(sortKeys(newItems));
+
+    const movedNodes = new Map<Key, TreeNode<T>>();
+
+    // Extract nodes from previous positions, reversed order to handle nested keys
+    for (const key of [...sortedKeys].reverse()) {
+      const node = map.get(key);
+      if (node) {
+        movedNodes.set(key, {
+          ...node,
+          parentKey
+        });
+        newItems = updateTree(newItems, key, () => null);
+      }
+    }
+
+    // If the destination does not have a parent, update the root
+    if (!parentKey) {
+      return [
+        ...newItems.slice(0, toIndex),
+        ...sortedKeys.map(movedNodes.get, movedNodes),
+        ...newItems.slice(toIndex)
+      ];
+    }
+
+    // Otherwise, update the parent node and its ancestors.
+    return updateTree(newItems, parentKey, parentNode => ({
+      ...parentNode,
+      children: [
+        ...parentNode.children.slice(0, toIndex),
+        ...sortedKeys.map(movedNodes.get, movedNodes),
+        ...parentNode.children.slice(toIndex)
+      ]
+    }));
   }
 
   return {
@@ -332,6 +430,38 @@ export function useTreeData<T extends object>(options: TreeOptions<T>): TreeData
             ...parentNode.children.slice(index)
           ]
         }));
+      });
+    },
+    moveBefore(key: Key, keys: Iterable<Key>) {
+      setItems(items => {
+        const node = map.get(key);
+        if (!node) {
+          return items;
+        }
+
+        const movingKeys = [...keys].filter(movingKey => movingKey !== key);
+        const parentNode = map.get(node.parentKey);
+        const nodes = parentNode ? parentNode.children : items;
+
+        const index = nodes.indexOf(node);
+
+        return move(items, movingKeys, node.parentKey, index);
+      });
+    },
+    moveAfter(key: Key, keys: Iterable<Key>) {
+      setItems(items => {
+        const node = map.get(key);
+        if (!node) {
+          return items;
+        }
+
+        const movingKeys = [...keys].filter(movingKey => movingKey !== key);
+        const parentNode = map.get(node.parentKey);
+        const nodes = parentNode ? parentNode.children : items;
+
+        const index = nodes.indexOf(node);
+
+        return move(items, movingKeys, node.parentKey, index + 1);
       });
     },
     update(oldKey: Key, newValue: T) {

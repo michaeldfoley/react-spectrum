@@ -33,6 +33,8 @@ const initial = [
 let getKey = (item) => item.name;
 let getChildren = (item) => item.children;
 
+const mapKeys = (node) => node.children.length ? [node.key, node.children.map(mapKeys)] : node.key;
+
 describe('useTreeData', function () {
   it('should construct a tree using initial data', function () {
     let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey, initialSelectedKeys: ['John', 'Stacy']}));
@@ -597,5 +599,205 @@ describe('useTreeData', function () {
     expect(result.current.items[0].children[0].key).toBe('John');
     expect(result.current.items[0].children[1].key).toBe('Sam');
     expect(result.current.items[0].children[2].key).toBe('Jane');
+  });
+
+  describe('moveBefore', function () {
+    it('should move an item into a child node before another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveBefore('John', ['Sam']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['Sam', ['Stacy', 'Brad']],
+          ['John', ['Suzie']],
+          'Jane'
+        ]
+      ]);
+    });
+
+    it('should move muliple items into a child node before another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveBefore('John', ['Brad', 'Sam', 'Jane']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['Sam', ['Stacy']],
+          'Brad',
+          'Jane',
+          ['John', ['Suzie']]
+        ]
+      ]);
+    });
+
+    it('should move an item into the root before another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveBefore('David', ['Sam']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'Sam', ['Stacy', 'Brad'],
+        'David', [
+          ['John', ['Suzie']],
+          'Jane'
+        ]
+      ]);
+    });
+
+    it('should move multiple items into the root before another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveBefore('David', ['Brad', 'Sam', 'Jane']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'Sam', ['Stacy'],
+        'Brad',
+        'Jane',
+        'David', [
+          ['John', ['Suzie']]
+        ]
+      ]);
+    });
+  });
+
+  describe('moveAfter', function () {
+    it('should move an item into a child node after another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveAfter('John', ['Sam']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+    });
+
+    it('should move muliple items into a child node after another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveAfter('John', ['Brad', 'Sam', 'Jane']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy']],
+          'Brad',
+          'Jane'
+        ]
+      ]);
+    });
+
+    it('should move an item into the root after another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveAfter('David', ['Sam']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          'Jane'
+        ],
+        'Sam', ['Stacy', 'Brad']
+      ]);
+    });
+
+    it('should move multiple items into the root after another item', function () {
+      let {result} = renderHook(() => useTreeData({initialItems: initial, getChildren, getKey}));
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']],
+          ['Sam', ['Stacy', 'Brad']],
+          'Jane'
+        ]
+      ]);
+
+      act(() => {
+        result.current.moveAfter('David', ['Brad', 'Sam', 'Jane']);
+      });
+
+      expect(result.current.items.flatMap(mapKeys)).toEqual([
+        'David', [
+          ['John', ['Suzie']]
+        ],
+        'Sam', ['Stacy'],
+        'Brad',
+        'Jane'
+      ]);
+    });
   });
 });
